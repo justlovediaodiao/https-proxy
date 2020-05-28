@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"log"
+	"fmt"
 
 	"github.com/justlovediaodiao/https-proxy/server"
 )
@@ -20,6 +20,6 @@ func main() {
 	}
 	var err = server.Start(&c)
 	if err != nil {
-		log.Printf("failed to start server: %v", err)
+		fmt.Printf("failed to start server: %v", err)
 	}
 }

@@ -24,14 +24,23 @@ func Start(config *Config) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("listening on %v for socks5", l.Addr().String())
+	var connF func(net.Conn) proxy.Conn
+	var protocol string
+	if config.Socks {
+		connF = proxy.SocksConn
+		protocol = "socks5"
+	} else {
+		connF = proxy.HttpConn
+		protocol = "http tunnel"
+	}
+	log.Printf("listening on %s for %s", l.Addr().String(), protocol)
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			log.Printf("failed to accept: %v", err)
 			continue
 		}
-		go handleConn(conn, config.Server, config.Password)
+		go handleConn(conn, config.Server, config.Password, connF)
 	}
 }
 
@@ -49,13 +58,13 @@ func configRootCA(cert string) error {
 	return nil
 }
 
-func handleConn(conn net.Conn, server string, password string) {
+func handleConn(conn net.Conn, server string, password string, connF func(net.Conn) proxy.Conn) {
 	defer conn.Close()
-	// client socks handshake
-	var cc = proxy.SocksConn(conn)
+	// client proxy handshake
+	var cc = connF(conn)
 	addr, err := cc.Handshake()
 	if err != nil {
-		log.Printf("socks handshake error: %v", err)
+		log.Printf("proxy handshake error: %v", err)
 		return
 	}
 	// connect to proxy server and do tls handshake

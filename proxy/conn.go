@@ -31,6 +31,11 @@ type socksConn struct {
 	net.Conn
 }
 
+// httpConn is client side incoming http connection.
+type httpConn struct {
+	net.Conn
+}
+
 // ClientConn wrap a client side outgoing connection.
 func ClientConn(c net.Conn, password string) Conn {
 	return &clientConn{c, password}
@@ -46,6 +51,11 @@ func SocksConn(c net.Conn) Conn {
 	return &socksConn{c}
 }
 
+// HttpConn wrap a client side incoming http connection.
+func HttpConn(c net.Conn) Conn {
+	return &httpConn{c}
+}
+
 // Handshake do handshake to client.
 func (c *clientConn) Handshake() (string, error) {
 	return c.handshake()
@@ -58,6 +68,11 @@ func (c *serverConn) Handshake() (string, error) {
 
 // Handshake do handshake to app.
 func (c *socksConn) Handshake() (string, error) {
+	return c.handshake()
+}
+
+// Handshake do handshake to app.
+func (c *httpConn) Handshake() (string, error) {
 	return c.handshake()
 }
 

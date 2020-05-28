@@ -34,13 +34,15 @@ It will start a https server on :443 and use `hp.crt` as certificate with key `h
 **client:**
 
 ```
-hpclient -l 127.0.0.1:1080 -server 59.24.3.174:443 -cert hp.crt -password F09a5SZbhJfzp5GI
+hpclient -l 127.0.0.1:1080 -socks -server 59.24.3.174:443 -cert hp.crt -password F09a5SZbhJfzp5GI
 ```
 
 It will start a socks5 proxy on `127.0.0.1:1080` and proxy to `59.24.3.174:443`.  
 `hp.crt` is trusted root CA.
 
 - l: local listening address, default is `:1080`.
+- socks: listening for socks5 proxy, which is default.
+- http: listening for http tunnel proxy.
 - server: server address.
 - cert: root certificate file path, used to verify server's certificate. optional, needed when using a self-signed certificate, it is `hp.crt`. 
 - password: password used for authorization.

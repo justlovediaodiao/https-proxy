@@ -18,7 +18,7 @@ func Start(config *Config) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("listening on %v for tls", l.Addr().String())
+	log.Printf("listening on %v for https", l.Addr().String())
 	for {
 		conn, err := l.Accept()
 		if err != nil {

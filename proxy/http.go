@@ -92,9 +92,9 @@ func (r *httpReader) ReadToEnd() error {
 }
 
 // httpResponse write http response to client
-func (c *clientConn) httpResponse(status string) error {
+func httpResponse(conn net.Conn, status string) error {
 	var line = fmt.Sprintf("HTTP/1.1 %s\r\n\r\n", status)
-	_, err := c.Conn.Write([]byte(line))
+	_, err := conn.Write([]byte(line))
 	return err
 }
 
@@ -107,24 +107,24 @@ func (c *clientConn) handshake() (string, error) {
 	var r = httpReader{Conn: c.Conn}
 	b, err := r.ReadLine()
 	if err != nil {
-		c.httpResponse(http400)
+		httpResponse(c.Conn, http400)
 		return "", errors.New(http400)
 	}
 	var arr = strings.Split(string(b), " ")
 	if len(arr) != 3 || arr[2] != "HTTP/1.1\r\n" {
-		c.httpResponse(http400)
+		httpResponse(c.Conn, http400)
 		return "", errors.New(http400)
 	}
 	if arr[0] != "GET" {
-		c.httpResponse(http403)
+		httpResponse(c.Conn, http403)
 		return "", errors.New(http403)
 	}
 	targetAddr, ok := verifyUriSig(arr[1], c.password)
 	if !ok {
-		c.httpResponse(http403)
+		httpResponse(c.Conn, http403)
 		return "", errors.New(http403)
 	}
-	c.httpResponse(http200)
+	httpResponse(c.Conn, http200)
 	return targetAddr, nil
 }
 
@@ -153,4 +153,33 @@ func (c *serverConn) handshake() error {
 		return fmt.Errorf("hadnshake error, code: %d", code)
 	}
 	return r.ReadToEnd()
+}
+
+// handshake do proxy side http handshake. Return target address that app want to connect to.
+func (c *httpConn) handshake() (string, error) {
+	var r = httpReader{Conn: c.Conn}
+	b, err := r.ReadLine()
+	if err != nil {
+		return "", err
+	}
+	var arr = strings.Split(string(b), " ")
+	if len(arr) != 3 || arr[2] != "HTTP/1.1\r\n" {
+		return "", errors.New(http400)
+	}
+	// tunnel mode, for https. read full connnect request and response 2xx, then relay.
+	if arr[0] != "CONNECT" { // CONNECT github.com:443 HTTP/1.1
+		return "", errors.New(http400)
+	}
+	var addr = arr[1]
+	if strings.IndexByte(arr[1], ':') == -1 || strings.HasSuffix(arr[1], "]") {
+		addr = fmt.Sprintf("%s:80", addr)
+	}
+	if err = r.ReadToEnd(); err != nil {
+		return "", nil
+	}
+	if err = httpResponse(c.Conn, http200); err != nil {
+		return "", nil
+	}
+	return addr, nil
+
 }
