@@ -1,121 +1,68 @@
 package proxy
 
 import (
-	"io"
 	"net"
-	"strings"
+	"net/url"
 	"testing"
-	"time"
 )
 
-type testConn struct {
-	data  []*strings.Reader
-	index int
-}
-
-func newTestConn(args []string) *testConn {
-	var data = make([]*strings.Reader, len(args))
-	for i, v := range args {
-		data[i] = strings.NewReader(v)
+func TestAuth(t *testing.T) {
+	var addr = "github.com"
+	var password = "test"
+	var query = getAuthQuery(addr, password)
+	q, err := url.ParseQuery(query)
+	if err != nil {
+		t.Error(err)
 	}
-	return &testConn{data, 0}
-}
-
-func (c *testConn) Read(b []byte) (int, error) {
-	var r = c.data[c.index]
-	n, err := r.Read(b)
-	if err == io.EOF {
-		c.index++
-		if c.index == len(c.data) {
-			return 0, io.EOF
-		}
-		r = c.data[c.index]
-		return r.Read(b)
+	addr2, ok := verifyAuthQuery(q, password)
+	if !ok || addr != addr2 {
+		t.Fail()
 	}
-	return n, err
 }
 
-func (c *testConn) Write(b []byte) (int, error) {
-	return len(b), nil
-}
-
-func (c *testConn) Close() error {
-	return nil
-}
-
-func (c *testConn) LocalAddr() net.Addr {
-	addr, _ := net.ResolveTCPAddr("rcp", "127.0.0.1:3333")
-	return addr
-}
-
-func (c *testConn) RemoteAddr() net.Addr {
-	addr, _ := net.ResolveTCPAddr("rcp", "127.0.0.1:80")
-	return addr
-}
-
-func (c *testConn) SetDeadline(t time.Time) error {
-	return nil
-}
-
-func (c *testConn) SetReadDeadline(t time.Time) error {
-	return nil
-}
-
-func (c *testConn) SetWriteDeadline(t time.Time) error {
-	return nil
-}
-
-func TestHttpReader(t *testing.T) {
-	var cases = [][]string{
-		{"GET / HTTP/1.1\r\n\r\n"},
-		{"GET / HTTP", "/1.1\r\n\r\n"},
-		{"GET / HTTP", "/1.1\r\n\r", "\n"},
-		{"GET / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n"},
-		{"GET / HTTP/1.1\r\nContent-Type: ", "application/json\r\n\r\n"},
+func TestHttpConn(t *testing.T) {
+	var data = []string{
+		"GET http://github.com/index?name=abc HTTP/1.1\r\nProxy-Connection: keep-alive\r\nUser-Agent: golang\r\n\r\n",
+		"POST http://github.com/post?name=def HTTP/1.1\r\nContent-Length: 11\r\n\r\nhello world",
 	}
-	// ReadLine should return line endswith \r\n
-	for _, c := range cases {
-		var r = httpReader{Conn: newTestConn(c)}
-		for i := 0; i < 2; i++ {
-			b, err := r.ReadLine()
-			if err != nil {
-				t.Error(err)
-			}
-			if strings.LastIndex(string(b), "\r\n") == -1 {
-				t.Errorf("%s", b)
-			}
-		}
+	var laddr = "127.0.0.1:1080"
+	l, err := net.Listen("tcp", laddr)
+	if err != nil {
+		t.Error(err)
 	}
-	// after ReadToEnd, ReadLine should return EOF
-	for _, c := range cases {
-		var r = httpReader{Conn: newTestConn(c)}
-		var err = r.ReadToEnd()
+
+	go func() {
+		c, err := net.Dial("tcp", laddr)
 		if err != nil {
 			t.Error(err)
 		}
-		_, err = r.ReadLine()
-		if err != io.EOF {
+		for _, d := range data {
+			_, err := c.Write([]byte(d))
+			if err != nil {
+				t.Error(err)
+			}
+		}
+		c.Close()
+	}()
+
+	conn, err := l.Accept()
+	if err != nil {
+		t.Error(err)
+	}
+
+	var c = HttpConn(conn)
+	addr, err := c.Handshake()
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(addr)
+
+	var b = make([]byte, 1024)
+	for i := 0; i < len(data); i++ {
+		n, err := c.Read(b)
+		if err != nil {
 			t.Error(err)
 		}
-	}
-}
-
-func TestAuth(t *testing.T) {
-	var cases = []struct {
-		addr     string
-		password string
-	}{
-		{"github.com:443", "test1"},
-		{"115.243.232.121:443", "test2"},
-	}
-	for _, c := range cases {
-		var uri = getSignedUri(c.addr, c.password)
-		r, ok := verifyUriSig(uri, c.password)
-		if !ok {
-			t.Fail()
-		}
-		if r != c.addr {
-			t.Fail()
-		}
+		t.Logf("%d: %s", i, b[:n])
 	}
 }

@@ -42,7 +42,7 @@ It will start a socks5 proxy on `127.0.0.1:1080` and proxy to `59.24.3.174:443`.
 
 - l: local listening address, default is `:1080`.
 - socks: listening for socks5 proxy, which is default.
-- http: listening for http tunnel proxy.
+- http: listening for http proxy.
 - server: server address.
 - cert: root certificate file path, used to verify server's certificate. optional, needed when using a self-signed certificate, it is `hp.crt`. 
 - password: password used for authorization.

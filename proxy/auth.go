@@ -16,24 +16,21 @@ func sign(msg []byte, key []byte) []byte {
 	return h.Sum(nil)
 }
 
-// getSignedUri return http request uri used for authorization.
-func getSignedUri(targetAddr string, password string) string {
+// getQuery return http request query string used for authorization.
+func getAuthQuery(targetAddr string, password string) string {
 	var ts = fmt.Sprintf("%d", time.Now().Unix())
 	var msg = fmt.Sprintf("%s%s", targetAddr, ts)
-	var sig = sign([]byte(msg), []byte(password))
-	return fmt.Sprintf("/?target=%s&time=%s&sig=%x", targetAddr, ts, sig)
+	var sig = fmt.Sprintf("%x", sign([]byte(msg), []byte(password)))
+	var q = url.Values{
+		"time":   []string{ts},
+		"target": []string{targetAddr},
+		"sig":    []string{sig},
+	}
+	return q.Encode()
 }
 
-// getSignedUri verify http request uri authorization and return target address.
-func verifyUriSig(uri string, password string) (string, bool) {
-	r, err := url.ParseRequestURI(uri)
-	if err != nil {
-		return "", false
-	}
-	if r.Path != "/" {
-		return "", false
-	}
-	var q = r.Query()
+// verifyQuery verify http request query string and return target address.
+func verifyAuthQuery(q url.Values, password string) (string, bool) {
 	var targetAddr = q.Get("target")
 	var ts = q.Get("time")
 	var sig = q.Get("sig")

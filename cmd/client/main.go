@@ -11,7 +11,7 @@ func main() {
 	var c = client.Config{}
 	flag.StringVar(&c.Listen, "l", ":1080", "listen address")
 	flag.BoolVar(&c.Socks, "socks", false, "listen for socks5 proxy, which is default")
-	flag.BoolVar(&c.Http, "http", false, "listen for http tunnel proxy")
+	flag.BoolVar(&c.Http, "http", false, "listen for http proxy")
 	flag.StringVar(&c.Server, "server", "", "server address")
 	flag.StringVar(&c.Cert, "cert", "", "tls certificate cert file, optional")
 	flag.StringVar(&c.Password, "password", "", "password")

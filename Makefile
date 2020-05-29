@@ -14,5 +14,12 @@ client:
 cert:
 	go build -o $(BIN)/cert $(MODULE)/cmd/cert
 
+test: server client cert
+	cd $(BIN) && ./cert -ip 127.0.0.1
+	echo "./hpserver -cert hp.crt -key hp.key -password test" > $(BIN)/server.sh
+	echo "./hpclient -cert hp.crt -server 127.0.0.1:443 -password test -http" > $(BIN)/client.sh
+	chmod u+x $(BIN)/server.sh
+	chmod u+x $(BIN)/client.sh
+
 clean:
-	rm -rf $(BIN)
+	rm -r $(BIN)

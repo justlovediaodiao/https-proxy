@@ -1,29 +1,13 @@
 package proxy
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"net"
-	"strconv"
+	"net/http"
 	"strings"
-)
-
-// httpReader read http request line from net.Conn
-type httpReader struct {
-	Conn  net.Conn
-	buf   []byte
-	last  byte
-	start int
-	end   int
-}
-
-// maxLineLen is max http request line length
-const maxLineLen = 8192
-
-// line break
-const (
-	cr byte = 13 // "\r"
-	lf byte = 10 // "\n"
 )
 
 // http status code and description.
@@ -33,64 +17,6 @@ const (
 	http400 = "400 Bad Request"
 )
 
-// ReadLine read a http request line endswith \r\n
-// The return []byte is a slice of inner bufffer of httpReader.
-// It may be changed after next ReadLine call.
-func (r *httpReader) ReadLine() ([]byte, error) {
-	if r.buf == nil {
-		r.buf = make([]byte, maxLineLen)
-	} else {
-		// read from buffer
-		for i, v := range r.buf[r.start:r.end] {
-			if r.last == cr && v == lf {
-				var result = r.buf[r.start : r.start+i+1]
-				r.start += i + 1
-				r.last = v
-				return result, nil
-			}
-			r.last = v
-		}
-		// if not line end, copy data to buffer start, then read from io.
-		copy(r.buf, r.buf[r.start:r.end])
-		r.end = r.end - r.start
-		r.start = 0
-	}
-	for {
-		var start = r.end
-		n, err := r.Conn.Read(r.buf[start:])
-		if err != nil {
-			return nil, err
-		}
-		r.end += n
-		for i, v := range r.buf[start:r.end] {
-			if r.last == cr && v == lf {
-				var result = r.buf[r.start : start+i+1]
-				r.start = start + i + 1
-				r.last = v
-				return result, nil
-			}
-			r.last = v
-		}
-		if r.end >= maxLineLen {
-			return nil, errors.New("over max request line length")
-		}
-	}
-}
-
-// ReadToEnd read lines until an empty line which is \r\n
-func (r *httpReader) ReadToEnd() error {
-	for {
-		line, err := r.ReadLine()
-		if err != nil {
-			return err
-		}
-		// \r\n
-		if len(line) == 2 {
-			return nil
-		}
-	}
-}
-
 // httpResponse write http response to client
 func httpResponse(conn net.Conn, status string) error {
 	var line = fmt.Sprintf("HTTP/1.1 %s\r\n\r\n", status)
@@ -98,88 +24,158 @@ func httpResponse(conn net.Conn, status string) error {
 	return err
 }
 
+// joinHostPort join port to host if host contains no port
+func joinHostPort(host string, port string) string {
+	if strings.LastIndexByte(host, ':') == -1 || strings.HasSuffix(host, "]") { // ipv6 addr [...]
+		return fmt.Sprintf("%s:%s", host, port)
+	}
+	return host
+}
+
 // handshake do server side handshake to client.
 // Read client handshake http request and verify authorization.
 // Response http 200 if success else other status code.
 // Return target address that client want to connect to.
 func (c *clientConn) handshake() (string, error) {
-	// GET /?target=&time=&sig= HTTP/1.1
-	var r = httpReader{Conn: c.Conn}
-	b, err := r.ReadLine()
+	req, err := http.ReadRequest(bufio.NewReader(c.Conn))
 	if err != nil {
 		httpResponse(c.Conn, http400)
-		return "", errors.New(http400)
+		return "", err
 	}
-	var arr = strings.Split(string(b), " ")
-	if len(arr) != 3 || arr[2] != "HTTP/1.1\r\n" {
-		httpResponse(c.Conn, http400)
-		return "", errors.New(http400)
-	}
-	if arr[0] != "GET" {
+	defer req.Body.Close()
+	if req.Method != "GET" || req.URL.Path != "/" {
 		httpResponse(c.Conn, http403)
-		return "", errors.New(http403)
+		return "", err
 	}
-	targetAddr, ok := verifyUriSig(arr[1], c.password)
+	addr, ok := verifyAuthQuery(req.URL.Query(), c.password)
 	if !ok {
 		httpResponse(c.Conn, http403)
 		return "", errors.New(http403)
 	}
 	httpResponse(c.Conn, http200)
-	return targetAddr, nil
+	return addr, nil
 }
 
 // handshake do client side handshake to server.
 // Send handshake http request to sever and read sever response.
 // Success if sever response http 200.
 func (c *serverConn) handshake() error {
-	var uri = getSignedUri(c.targetAddr, c.password)
-	var line = fmt.Sprintf("GET %s HTTP/1.1\r\n\r\n", uri)
-	c.Conn.Write([]byte(line))
-	// HTTP/1.1 200 OK
-	var r = httpReader{Conn: c.Conn}
-	b, err := r.ReadLine()
+	var q = getAuthQuery(c.targetAddr, c.password)
+	var line = fmt.Sprintf("GET /?%s HTTP/1.1\r\n\r\n", q)
+	_, err := c.Conn.Write([]byte(line))
 	if err != nil {
 		return err
 	}
-	var arr = strings.SplitN(string(b), " ", 3)
-	if len(arr) != 3 || arr[0] != "HTTP/1.1" {
-		return errors.New(http400)
-	}
-	code, err := strconv.Atoi(arr[1])
+
+	resp, err := http.ReadResponse(bufio.NewReader(c.Conn), nil)
 	if err != nil {
 		return err
 	}
-	if code != 200 {
-		return fmt.Errorf("hadnshake error, code: %d", code)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("hadnshake error, status code: %d", resp.StatusCode)
 	}
-	return r.ReadToEnd()
+	return nil
 }
 
-// handshake do proxy side http handshake. Return target address that app want to connect to.
+// handshake do proxy side http handshake to app.
+// Return target address that app want to connect to.
 func (c *httpConn) handshake() (string, error) {
-	var r = httpReader{Conn: c.Conn}
-	b, err := r.ReadLine()
+	var bufConn = bufio.NewReader(c.Conn)
+	req, err := http.ReadRequest(bufConn)
 	if err != nil {
 		return "", err
 	}
-	var arr = strings.Split(string(b), " ")
-	if len(arr) != 3 || arr[2] != "HTTP/1.1\r\n" {
-		return "", errors.New(http400)
+	if req.Method == "CONNECT" { // tunnel mode, for https
+		c.isTunnel = true
+		req.Body.Close()
+		if err = httpResponse(c.Conn, http200); err != nil {
+			return "", err
+		}
+		return joinHostPort(req.URL.Host, "80"), nil
 	}
-	// tunnel mode, for https. read full connnect request and response 2xx, then relay.
-	if arr[0] != "CONNECT" { // CONNECT github.com:443 HTTP/1.1
-		return "", errors.New(http400)
-	}
-	var addr = arr[1]
-	if strings.IndexByte(arr[1], ':') == -1 || strings.HasSuffix(arr[1], "]") {
-		addr = fmt.Sprintf("%s:80", addr)
-	}
-	if err = r.ReadToEnd(); err != nil {
-		return "", nil
-	}
-	if err = httpResponse(c.Conn, http200); err != nil {
-		return "", nil
-	}
-	return addr, nil
+	// proxy mode, for http
+	c.bufConn = bufConn
+	c.request = newRequestReader(req)
+	return joinHostPort(req.URL.Host, "80"), nil
+}
 
+// Read reads data from the connection.
+func (c *httpConn) Read(b []byte) (int, error) {
+	if c.isTunnel { // tunnnel mode just relay after handshake
+		return c.Conn.Read(b)
+	}
+READ:
+	// proxy mode should forward http request to server
+	if c.request == nil {
+		req, err := http.ReadRequest(c.bufConn)
+		if err != nil {
+			return 0, err
+		}
+		c.request = newRequestReader(req)
+	}
+	n, err := c.request.Read(b)
+	if err == io.EOF { // EOF, request ended
+		c.request = nil
+		err = nil
+		goto READ
+	}
+	return n, err
+}
+
+// requestReader trun http.Request to stream used to forward to remote.
+// Read call will automatically close req.Body when read to EOF or error.
+type requestReader struct {
+	req       *http.Request
+	reqReader io.Reader
+	eof       bool
+}
+
+// Read read data as much as possiable until full or EOF or error.
+func (r *requestReader) Read(b []byte) (n int, err error) {
+	if r.eof {
+		err = io.EOF
+		return
+	}
+	for n < len(b) && err == nil {
+		var nn int
+		nn, err = r.reqReader.Read(b[n:])
+		n += nn
+	}
+	if err != nil {
+		r.req.Body.Close() // must close req.Body
+	}
+	if n > 0 && err == io.EOF { // should not return eof if n > 0
+		r.eof = true
+		err = nil
+	}
+	return
+}
+
+// newRequestReader return requestReader.
+func newRequestReader(req *http.Request) io.Reader {
+	var rs = make([]io.Reader, 0, len(req.Header)+3) // request line + header lines + \r\n + body. assume each header appears once.
+	var reqLine = fmt.Sprintf("%s %s HTTP/1.1\r\n", req.Method, req.URL.RequestURI())
+	rs = append(rs, strings.NewReader(reqLine))
+	for k, vs := range req.Header {
+		// remove hop-by -op headers, not sure, fuck http specification.
+		switch k {
+		case "Transfer-Encoding": // request body maybe chuncked, but forwarding to remote is not.
+		case "Proxy-Authenticate": // used for proxy auth, should not send to remote.
+		case "Proxy-Authorization":
+		case "Connection": // why?
+		case "Trailer":
+		case "TE":
+		case "Upgrade": // maybe websocket, donot support.
+		case "Proxy-Connection": // not a standadrd header and nothing working, just remove.
+			continue
+		}
+		for _, v := range vs {
+			var header = fmt.Sprintf("%s: %s\r\n", k, v)
+			rs = append(rs, strings.NewReader(header), req.Body)
+		}
+	}
+	// set Host header and \r\n
+	rs = append(rs, strings.NewReader(fmt.Sprintf("Host: %s\r\n\r\n", req.Host)))
+	return &requestReader{req, io.MultiReader(rs...), false}
 }

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"io"
 	"net"
 	"time"
@@ -34,6 +35,9 @@ type socksConn struct {
 // httpConn is client side incoming http connection.
 type httpConn struct {
 	net.Conn
+	isTunnel bool          // works on tunnel or proxy mode?
+	bufConn  *bufio.Reader // used to read net.Conn for http
+	request  io.Reader     // http request used to forward to remote
 }
 
 // ClientConn wrap a client side outgoing connection.
@@ -53,7 +57,7 @@ func SocksConn(c net.Conn) Conn {
 
 // HttpConn wrap a client side incoming http connection.
 func HttpConn(c net.Conn) Conn {
-	return &httpConn{c}
+	return &httpConn{Conn: c}
 }
 
 // Handshake do handshake to client.

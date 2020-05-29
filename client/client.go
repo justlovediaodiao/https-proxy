@@ -31,7 +31,7 @@ func Start(config *Config) error {
 		protocol = "socks5"
 	} else {
 		connF = proxy.HttpConn
-		protocol = "http tunnel"
+		protocol = "http"
 	}
 	log.Printf("listening on %s for %s", l.Addr().String(), protocol)
 	for {
