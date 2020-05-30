@@ -173,10 +173,10 @@ func newRequestReader(req *http.Request) io.Reader {
 		}
 		for _, v := range vs {
 			var header = fmt.Sprintf("%s: %s\r\n", k, v)
-			rs = append(rs, strings.NewReader(header), req.Body)
+			rs = append(rs, strings.NewReader(header))
 		}
 	}
 	// set Host header and \r\n
-	rs = append(rs, strings.NewReader(fmt.Sprintf("Host: %s\r\n\r\n", req.Host)))
+	rs = append(rs, strings.NewReader(fmt.Sprintf("Host: %s\r\n\r\n", req.Host)), req.Body)
 	return &requestReader{req, io.MultiReader(rs...), false}
 }
