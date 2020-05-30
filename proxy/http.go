@@ -158,17 +158,18 @@ func newRequestReader(req *http.Request) io.Reader {
 	var reqLine = fmt.Sprintf("%s %s HTTP/1.1\r\n", req.Method, req.URL.RequestURI())
 	rs = append(rs, strings.NewReader(reqLine))
 	for k, vs := range req.Header {
-		// remove hop-by -op headers, not sure, fuck http specification.
+		// remove hop-by-hop headers, not sure, fuck http specification.
 		switch k {
 		case "Transfer-Encoding": // request body maybe chuncked, but forwarding to remote is not.
-		case "Proxy-Authenticate": // used for proxy auth, should not send to remote.
+		case "Proxy-Authenticate":
 		case "Proxy-Authorization":
-		case "Connection": // why?
+		case "Connection":
 		case "Trailer":
 		case "TE":
 		case "Upgrade": // maybe websocket, donot support.
-		case "Proxy-Connection": // not a standadrd header and nothing working, just remove.
 			continue
+		case "Proxy-Connection":
+			k = "Connection"
 		}
 		for _, v := range vs {
 			var header = fmt.Sprintf("%s: %s\r\n", k, v)
