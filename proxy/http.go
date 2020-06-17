@@ -45,14 +45,16 @@ func (c *clientConn) handshake() (string, error) {
 	defer req.Body.Close()
 	if req.Method != "GET" || req.URL.Path != "/" {
 		httpResponse(c.Conn, http403)
-		return "", err
+		return "", errors.New(http403)
 	}
 	addr, ok := verifyAuthQuery(req.URL.Query(), c.password)
 	if !ok {
 		httpResponse(c.Conn, http403)
 		return "", errors.New(http403)
 	}
-	httpResponse(c.Conn, http200)
+	if err = httpResponse(c.Conn, http200); err != nil {
+		return "", err
+	}
 	return addr, nil
 }
 

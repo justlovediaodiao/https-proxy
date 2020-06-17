@@ -16,7 +16,7 @@ func sign(msg []byte, key []byte) []byte {
 	return h.Sum(nil)
 }
 
-// getQuery return http request query string used for authorization.
+// getAuthQuery return http request query string used for authorization.
 func getAuthQuery(targetAddr string, password string) string {
 	var ts = fmt.Sprintf("%d", time.Now().Unix())
 	var msg = fmt.Sprintf("%s%s", targetAddr, ts)
@@ -29,7 +29,7 @@ func getAuthQuery(targetAddr string, password string) string {
 	return q.Encode()
 }
 
-// verifyQuery verify http request query string and return target address.
+// verifyAuthQuery verify http request query string and return target address.
 func verifyAuthQuery(q url.Values, password string) (string, bool) {
 	var targetAddr = q.Get("target")
 	var ts = q.Get("time")
