@@ -1,6 +1,7 @@
 # https-proxy
 
-![Build](#https://github.com/justlovediaodiao/https-proxy/workflows/Build/badge.svg)
+[![Build](https://github.com/justlovediaodiao/https-proxy/workflows/Build/badge.svg)](https://github.com/justlovediaodiao/https-proxy/actions?query=workflow%3ABuild)
+[![Go version](https://img.shields.io/github/go-mod/go-version/justlovediaodiao/https-proxy)](https://golang.org/)
 
 HTTPS proxy is a tcp proxy. It transfers proxy data over HTTPS.
 
