@@ -1,5 +1,7 @@
 # https-proxy
 
+![Build](#https://github.com/justlovediaodiao/https-proxy/workflows/Build/badge.svg)
+
 HTTPS proxy is a tcp proxy. It transfers proxy data over HTTPS.
 
 ### Why HTTPS

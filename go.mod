@@ -1,3 +1,3 @@
 module github.com/justlovediaodiao/https-proxy
 
-go 1.14
+go 1.15
