@@ -47,7 +47,7 @@ It will start a socks5 proxy on `127.0.0.1:1080` and proxy to `59.24.3.174:443`.
 - socks: listening for socks5 proxy, which is default.
 - http: listening for http proxy.
 - server: server address.
-- cert: root certificate file path, used to verify server's certificate. optional, needed when using a self-signed certificate, it is `hp.crt`. 
+- cert: root certificate file path, used to verify server's certificate. optional, needed when using a self-signed certificate. 
 - password: password used for authorization.
 
 ### Protocol
@@ -76,7 +76,7 @@ GET /?target=github.com:443&time=1590411634&sig=c2208abde9668e8e9815c3690855edd1
 - time: Current unix timestamp that is accurate to a second. No more than 2 minutes compared to server time.
 - sig: Signature. `HMAC(msg, key, sha1)`:
 ```
-msg: target + time string, which is github.com:4431590411634
+msg: target + time string, for example: github.com:4431590411634
 key: password
 sha1: the SHA1 hash algorithm
 ```

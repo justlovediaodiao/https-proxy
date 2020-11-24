@@ -87,16 +87,16 @@ func Relay(left, right net.Conn) error {
 	go func() {
 		_, err := io.Copy(right, left)
 		ch <- err
-		right.SetDeadline(time.Now()) // wake up the other goroutine blocking on right
-		left.SetDeadline(time.Now())  // wake up the other goroutine blocking on left
+		right.SetReadDeadline(time.Now()) // unblock read on right
 	}()
 
 	_, err := io.Copy(left, right)
 	ch <- err
-	right.SetDeadline(time.Now()) // wake up the other goroutine blocking on right
-	left.SetDeadline(time.Now())  // wake up the other goroutine blocking on left
+	left.SetReadDeadline(time.Now()) // unblock read on left
+
 	// the first err is relay error reason.
 	err = <-ch
+	// wait goroutine done
 	<-ch
 	return err
 }
