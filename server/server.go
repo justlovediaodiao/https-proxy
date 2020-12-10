@@ -13,7 +13,7 @@ func Start(config *Config) error {
 	if err != nil {
 		return err
 	}
-	var c = &tls.Config{Certificates: []tls.Certificate{cer}}
+	var c = &tls.Config{Certificates: []tls.Certificate{cer}, MinVersion: tls.VersionTLS13}
 	l, err := tls.Listen("tcp", config.Listen, c)
 	if err != nil {
 		return err

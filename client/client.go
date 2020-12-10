@@ -11,7 +11,7 @@ import (
 	"github.com/justlovediaodiao/https-proxy/proxy"
 )
 
-var tlsConfig *tls.Config
+var tlsConfig = &tls.Config{MinVersion: tls.VersionTLS13}
 
 func Start(config *Config) error {
 	if config.Cert != "" {
@@ -54,7 +54,7 @@ func configRootCA(cert string) error {
 	if !ok {
 		return errors.New("invalid certificate")
 	}
-	tlsConfig = &tls.Config{RootCAs: pool}
+	tlsConfig.RootCAs = pool
 	return nil
 }
 
