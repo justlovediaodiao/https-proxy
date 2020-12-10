@@ -47,7 +47,7 @@ func (c *clientConn) handshake() (string, error) {
 		httpResponse(c.Conn, http403)
 		return "", errors.New(http403)
 	}
-	addr, ok := verifyAuthQuery(req.URL.Query(), c.password)
+	addr, ok := verifyAuthQuery(req.URL.Query(), c.key)
 	if !ok {
 		httpResponse(c.Conn, http403)
 		return "", errors.New(http403)
@@ -62,7 +62,7 @@ func (c *clientConn) handshake() (string, error) {
 // Send handshake http request to sever and read sever response.
 // Success if sever response http 200.
 func (c *serverConn) handshake() error {
-	var q = getAuthQuery(c.targetAddr, c.password)
+	var q = getAuthQuery(c.targetAddr, c.key)
 	var line = fmt.Sprintf("GET /?%s HTTP/1.1\r\n\r\n", q)
 	_, err := c.Conn.Write([]byte(line))
 	if err != nil {

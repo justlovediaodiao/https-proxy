@@ -8,13 +8,13 @@ import (
 
 func TestAuth(t *testing.T) {
 	var addr = "github.com"
-	var password = "test"
-	var query = getAuthQuery(addr, password)
+	var key = kdf("test", 32)
+	var query = getAuthQuery(addr, key)
 	q, err := url.ParseQuery(query)
 	if err != nil {
 		t.Error(err)
 	}
-	addr2, ok := verifyAuthQuery(q, password)
+	addr2, ok := verifyAuthQuery(q, key)
 	if !ok || addr != addr2 {
 		t.Fail()
 	}

@@ -77,7 +77,7 @@ GET /?target=github.com:443&time=1590411634&sig=c2208abde9668e8e9815c3690855edd1
 - sig: Signature. `HMAC(msg, key, sha1)`:
 ```
 msg: target + time string, for example: github.com:4431590411634
-key: password
+key: 32-bytes, derivation from password. following EVP_BytesToKey(3) in OpenSSL.
 sha1: the SHA1 hash algorithm
 ```
 

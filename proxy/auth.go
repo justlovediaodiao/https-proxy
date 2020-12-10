@@ -2,12 +2,27 @@ package proxy
 
 import (
 	"crypto/hmac"
+	"crypto/md5"
 	"crypto/sha1"
 	"fmt"
 	"net/url"
 	"strconv"
 	"time"
 )
+
+// key-derivation function from original Shadowsocks
+func kdf(password string, keyLen int) []byte {
+	var b, prev []byte
+	h := md5.New()
+	for len(b) < keyLen {
+		h.Write(prev)
+		h.Write([]byte(password))
+		b = h.Sum(b)
+		prev = b[len(b)-h.Size():]
+		h.Reset()
+	}
+	return b[:keyLen]
+}
 
 // sign calc HMAC(msg, key, sha1)
 func sign(msg []byte, key []byte) []byte {
@@ -17,10 +32,10 @@ func sign(msg []byte, key []byte) []byte {
 }
 
 // getAuthQuery return http request query string used for authorization.
-func getAuthQuery(targetAddr string, password string) string {
+func getAuthQuery(targetAddr string, key []byte) string {
 	var ts = fmt.Sprintf("%d", time.Now().Unix())
 	var msg = fmt.Sprintf("%s%s", targetAddr, ts)
-	var sig = fmt.Sprintf("%x", sign([]byte(msg), []byte(password)))
+	var sig = fmt.Sprintf("%x", sign([]byte(msg), key))
 	var q = url.Values{
 		"time":   []string{ts},
 		"target": []string{targetAddr},
@@ -30,7 +45,7 @@ func getAuthQuery(targetAddr string, password string) string {
 }
 
 // verifyAuthQuery verify http request query string and return target address.
-func verifyAuthQuery(q url.Values, password string) (string, bool) {
+func verifyAuthQuery(q url.Values, key []byte) (string, bool) {
 	var targetAddr = q.Get("target")
 	var ts = q.Get("time")
 	var sig = q.Get("sig")
@@ -46,7 +61,7 @@ func verifyAuthQuery(q url.Values, password string) (string, bool) {
 		return "", false
 	}
 	var msg = fmt.Sprintf("%s%s", targetAddr, ts)
-	var sig2 = sign([]byte(msg), []byte(password))
+	var sig2 = sign([]byte(msg), key)
 	if fmt.Sprintf("%x", sig2) != sig {
 		return "", false
 	}

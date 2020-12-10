@@ -17,14 +17,14 @@ type Conn interface {
 // clientConn is sever side incoming connection.
 type clientConn struct {
 	net.Conn
-	password string
+	key []byte
 }
 
 // clientConn is client side outgoing connection.
 type serverConn struct {
 	net.Conn
 	targetAddr string
-	password   string
+	key        []byte
 }
 
 // socksConn is client side incoming socks connection.
@@ -42,12 +42,12 @@ type httpConn struct {
 
 // ClientConn wrap a client side outgoing connection.
 func ClientConn(c net.Conn, password string) Conn {
-	return &clientConn{c, password}
+	return &clientConn{c, kdf(password, 32)}
 }
 
 // ServerConn wrap a sever side incoming connection.
 func ServerConn(c net.Conn, targetAddr string, password string) Conn {
-	return &serverConn{c, targetAddr, password}
+	return &serverConn{c, targetAddr, kdf(password, 32)}
 }
 
 // SocksConn wrap a client side incoming socks connection.
