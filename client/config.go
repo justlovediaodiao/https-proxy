@@ -1,9 +1,10 @@
 package client
 
+// Config config.
 type Config struct {
 	Listen   string
 	Socks    bool
-	Http     bool
+	HTTP     bool
 	Server   string
 	Cert     string
 	Password string

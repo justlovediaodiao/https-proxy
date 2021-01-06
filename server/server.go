@@ -8,6 +8,7 @@ import (
 	"github.com/justlovediaodiao/https-proxy/proxy"
 )
 
+// Start start server service.
 func Start(config *Config) error {
 	cer, err := tls.LoadX509KeyPair(config.Cert, config.Key)
 	if err != nil {
@@ -38,7 +39,7 @@ func handleConn(conn net.Conn, password string) {
 		return
 	}
 	// proxy client http handshake
-	var cc = proxy.ClientConn(conn, password)
+	var cc = proxy.NewClientConn(conn, password)
 	addr, err := cc.Handshake()
 	if err != nil {
 		log.Printf("http handshake error: %v", err)

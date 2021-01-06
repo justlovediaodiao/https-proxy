@@ -40,23 +40,23 @@ type httpConn struct {
 	request  io.Reader     // http request used to forward to remote
 }
 
-// ClientConn wrap a client side outgoing connection.
-func ClientConn(c net.Conn, password string) Conn {
+// NewClientConn wrap a sever side incoming connection.
+func NewClientConn(c net.Conn, password string) Conn {
 	return &clientConn{c, kdf(password, 32)}
 }
 
-// ServerConn wrap a sever side incoming connection.
-func ServerConn(c net.Conn, targetAddr string, password string) Conn {
+// NewServerConn wrap a client side outgoing connection.
+func NewServerConn(c net.Conn, targetAddr string, password string) Conn {
 	return &serverConn{c, targetAddr, kdf(password, 32)}
 }
 
-// SocksConn wrap a client side incoming socks connection.
-func SocksConn(c net.Conn) Conn {
+// NewSocksConn wrap a client side incoming socks connection.
+func NewSocksConn(c net.Conn) Conn {
 	return &socksConn{c}
 }
 
-// HttpConn wrap a client side incoming http connection.
-func HttpConn(c net.Conn) Conn {
+// NewHTTPConn wrap a client side incoming http connection.
+func NewHTTPConn(c net.Conn) Conn {
 	return &httpConn{Conn: c}
 }
 

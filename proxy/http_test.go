@@ -50,7 +50,7 @@ func TestHttpConn(t *testing.T) {
 		t.Error(err)
 	}
 
-	var c = HttpConn(conn)
+	var c = NewHTTPConn(conn)
 	addr, err := c.Handshake()
 	if err != nil {
 		t.Error(err)

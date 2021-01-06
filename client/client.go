@@ -13,6 +13,7 @@ import (
 
 var tlsConfig = &tls.Config{MinVersion: tls.VersionTLS13}
 
+// Start start client service.
 func Start(config *Config) error {
 	if config.Cert != "" {
 		var err = configRootCA(config.Cert)
@@ -27,10 +28,10 @@ func Start(config *Config) error {
 	var connF func(net.Conn) proxy.Conn
 	var protocol string
 	if config.Socks {
-		connF = proxy.SocksConn
+		connF = proxy.NewSocksConn
 		protocol = "socks5"
 	} else {
-		connF = proxy.HttpConn
+		connF = proxy.NewHTTPConn
 		protocol = "http"
 	}
 	log.Printf("listening on %s for %s", l.Addr().String(), protocol)
@@ -81,7 +82,7 @@ func handleConn(conn net.Conn, server string, password string, connF func(net.Co
 		return
 	}
 	// proxy server http handshake and relay stream
-	var sc = proxy.ServerConn(rc, addr, password)
+	var sc = proxy.NewServerConn(rc, addr, password)
 	_, err = sc.Handshake()
 	if err != nil {
 		log.Printf("http handshake error: %v", err)
