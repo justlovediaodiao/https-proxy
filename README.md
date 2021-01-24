@@ -3,7 +3,7 @@
 [![Build](https://github.com/justlovediaodiao/https-proxy/workflows/Build/badge.svg)](https://github.com/justlovediaodiao/https-proxy/actions?query=workflow%3ABuild)
 [![Go version](https://img.shields.io/github/go-mod/go-version/justlovediaodiao/https-proxy)](https://golang.org/)
 
-HTTPS proxy is a tcp proxy. It transfers proxy data over HTTPS.
+HTTPS proxy is a tcp/udp proxy. It transfers proxy data over HTTPS.
 
 ### Why HTTPS
 
@@ -37,15 +37,14 @@ It will start a https server on :443 and use `hp.crt` as certificate with key `h
 **client:**
 
 ```
-hpclient -l 127.0.0.1:1080 -socks -server 59.24.3.174:443 -cert hp.crt -password F09a5SZbhJfzp5GI
+hpclient -l 127.0.0.1:1080 -server 59.24.3.174:443 -cert hp.crt -password F09a5SZbhJfzp5GI
 ```
 
-It will start a socks5 proxy on `127.0.0.1:1080` and proxy to `59.24.3.174:443`.  
+It will start a socks5 proxy listening tcp/udp on `127.0.0.1:1080` and proxy to `59.24.3.174:443`.  
 `hp.crt` is trusted root CA.
 
 - l: local listening address, default is `:1080`.
-- socks: listening for socks5 proxy, which is default.
-- http: listening for http proxy.
+- http: listening for http proxy, not socks, which donot support udp.
 - server: server address.
 - cert: root certificate file path, used to verify server's certificate. optional, needed when using a self-signed certificate. 
 - password: password used for authorization.
@@ -72,11 +71,12 @@ GET /?target=github.com:443&time=1590411634&sig=c2208abde9668e8e9815c3690855edd1
 
 - method: Must be `GET`.
 - path: Must be `/`.
+- network: udp or tcp.
 - target: Target address with port. ipv4 or ipv6 or domain.
 - time: Current unix timestamp that is accurate to a second. No more than 2 minutes compared to server time.
 - sig: Signature. `HMAC(msg, key, sha1)`:
 ```
-msg: target + time string, for example: github.com:4431590411634
+msg: network + target + time string, for example: tcpgithub.com:4431590411634
 key: 32-bytes, derivation from password. following EVP_BytesToKey(3) in OpenSSL.
 sha1: the SHA1 hash algorithm
 ```
@@ -90,3 +90,8 @@ HTTP/1.1 200 OK
 Don't return too many http error codes. The client doesn't care about this. Instead, it gives the chance to detect whether it is a proxy service.
 
 - proxy data: Real transfer data.
+
+
+#### UDP
+
+UDP packets are transfered over tcp. see [udp-over-tcp](https://github.com/justlovediaodiao/udp-over-tcp).
