@@ -22,4 +22,4 @@ test: server client cert
 	chmod u+x $(BIN)/client.sh
 
 clean:
-	rm -r $(BIN)
+	rm -rf $(BIN)

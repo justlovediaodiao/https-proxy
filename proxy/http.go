@@ -32,37 +32,37 @@ func joinHostPort(host string, port string) string {
 	return host
 }
 
-// handshake do server side handshake to client.
+// serverHandshake do server side handshake to client.
 // Read client handshake http request and verify authorization.
 // Response http 200 if success else other status code.
 // Return target address that client want to connect to.
-func (c *clientConn) handshake() (string, error) {
+func (c *tcpConn) serverHandshake() (net.Addr, error) {
 	req, err := http.ReadRequest(bufio.NewReader(c.Conn))
 	if err != nil {
 		httpResponse(c.Conn, http400)
-		return "", err
+		return nil, err
 	}
 	defer req.Body.Close()
 	if req.Method != "GET" || req.URL.Path != "/" {
 		httpResponse(c.Conn, http403)
-		return "", errors.New(http403)
+		return nil, errors.New(http403)
 	}
 	addr, ok := verifyAuthQuery(req.URL.Query(), c.key)
 	if !ok {
 		httpResponse(c.Conn, http403)
-		return "", errors.New(http403)
+		return nil, errors.New(http403)
 	}
 	if err = httpResponse(c.Conn, http200); err != nil {
-		return "", err
+		return nil, err
 	}
 	return addr, nil
 }
 
-// handshake do client side handshake to server.
+// clientHandshake do client side handshake to server.
 // Send handshake http request to sever and read sever response.
 // Success if sever response http 200.
-func (c *serverConn) handshake() error {
-	var q = getAuthQuery(c.targetAddr, c.key)
+func (c *tcpConn) clientHandshake(addr net.Addr) error {
+	var q = getAuthQuery(addr, c.key)
 	var line = fmt.Sprintf("GET /?%s HTTP/1.1\r\n\r\n", q)
 	_, err := c.Conn.Write([]byte(line))
 	if err != nil {
@@ -82,24 +82,30 @@ func (c *serverConn) handshake() error {
 
 // handshake do proxy side http handshake to app.
 // Return target address that app want to connect to.
-func (c *httpConn) handshake() (string, error) {
+func (c *httpConn) handshake() (net.Addr, error) {
 	var bufConn = bufio.NewReader(c.Conn)
 	req, err := http.ReadRequest(bufConn)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if req.Method == "CONNECT" { // tunnel mode, for https
 		c.isTunnel = true
 		req.Body.Close()
 		if err = httpResponse(c.Conn, http200); err != nil {
-			return "", err
+			return nil, err
 		}
-		return joinHostPort(req.URL.Host, "80"), nil
+		return targetAddr{
+			network: "tcp",
+			address: joinHostPort(req.URL.Host, "80"),
+		}, nil
 	}
 	// proxy mode, for http
 	c.bufConn = bufConn
 	c.request = newRequestReader(req)
-	return joinHostPort(req.URL.Host, "80"), nil
+	return targetAddr{
+		network: "tcp",
+		address: joinHostPort(req.URL.Host, "80"),
+	}, nil
 }
 
 // Read reads data from the connection.

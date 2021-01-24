@@ -2,29 +2,30 @@ package proxy
 
 import (
 	"bufio"
+	"errors"
+	"fmt"
 	"io"
 	"net"
+	"os"
 	"time"
+
+	uot "github.com/justlovediaodiao/udp-over-tcp"
 )
 
 // Conn is a tcp stream connection.
 type Conn interface {
 	net.Conn
-	// Handshake do handshake and return target address of proxied tcp stream.
-	Handshake() (string, error)
+	// Handshake do handshake.
+	// if receives nil, read addr from conn and return.
+	// if receives non-nil, write addr to conn.
+	Handshake(net.Addr) (net.Addr, error)
 }
 
-// clientConn is sever side incoming connection.
-type clientConn struct {
+// tcpConn is connnection between client and server.
+type tcpConn struct {
 	net.Conn
-	key []byte
-}
-
-// clientConn is client side outgoing connection.
-type serverConn struct {
-	net.Conn
-	targetAddr string
-	key        []byte
+	key      []byte
+	isClient bool
 }
 
 // socksConn is client side incoming socks connection.
@@ -40,14 +41,44 @@ type httpConn struct {
 	request  io.Reader     // http request used to forward to remote
 }
 
-// NewClientConn wrap a sever side incoming connection.
-func NewClientConn(c net.Conn, password string) Conn {
-	return &clientConn{c, kdf(password, 32)}
+type targetAddr struct {
+	network string
+	address string
 }
 
-// NewServerConn wrap a client side outgoing connection.
-func NewServerConn(c net.Conn, targetAddr string, password string) Conn {
-	return &serverConn{c, targetAddr, kdf(password, 32)}
+func (a targetAddr) Network() string {
+	return a.network
+}
+
+func (a targetAddr) String() string {
+	return a.address
+}
+
+// NewInConn wrap a sever side incoming connection.
+func NewInConn(c net.Conn, password string) Conn {
+	return &tcpConn{
+		Conn:     c,
+		key:      kdf(password, 32),
+		isClient: false,
+	}
+}
+
+// NewOutConn wrap a client side outgoing connection.
+func NewOutConn(c net.Conn, password string) Conn {
+	return &tcpConn{
+		Conn:     c,
+		key:      kdf(password, 32),
+		isClient: true,
+	}
+}
+
+// UDPOverTCP wraps a conn between client and server as udp-over-tcp.
+func UDPOverTCP(c Conn) Conn {
+	cc, ok := c.(*tcpConn)
+	if !ok {
+		panic(fmt.Sprintf("error Conn type: %v", c))
+	}
+	return &uotConn{*cc}
 }
 
 // NewSocksConn wrap a client side incoming socks connection.
@@ -55,48 +86,53 @@ func NewSocksConn(c net.Conn) Conn {
 	return &socksConn{c}
 }
 
+// NewSocksUDPConn wrap a client side incoming udp connection.
+func NewSocksUDPConn(c net.PacketConn) uot.PacketConn {
+	return uot.DefaultPacketConn(c)
+}
+
 // NewHTTPConn wrap a client side incoming http connection.
 func NewHTTPConn(c net.Conn) Conn {
 	return &httpConn{Conn: c}
 }
 
-// Handshake do handshake to client.
-func (c *clientConn) Handshake() (string, error) {
-	return c.handshake()
-}
-
-// Handshake do handshake to server.
-func (c *serverConn) Handshake() (string, error) {
-	return c.targetAddr, c.handshake()
+// Handshake do handshake.
+func (c *tcpConn) Handshake(addr net.Addr) (net.Addr, error) {
+	if c.isClient {
+		return addr, c.clientHandshake(addr)
+	}
+	return c.serverHandshake()
 }
 
 // Handshake do handshake to app.
-func (c *socksConn) Handshake() (string, error) {
+func (c *socksConn) Handshake(net.Addr) (net.Addr, error) {
 	return c.handshake()
 }
 
 // Handshake do handshake to app.
-func (c *httpConn) Handshake() (string, error) {
+func (c *httpConn) Handshake(net.Addr) (net.Addr, error) {
 	return c.handshake()
 }
 
 // Relay copies between left and right bidirectionally.
 func Relay(left, right net.Conn) error {
-	ch := make(chan error, 2)
-
+	done := make(chan error, 1)
 	go func() {
 		_, err := io.Copy(right, left)
-		ch <- err
+		done <- err
 		right.SetReadDeadline(time.Now()) // unblock read on right
 	}()
 
 	_, err := io.Copy(left, right)
-	ch <- err
 	left.SetReadDeadline(time.Now()) // unblock read on left
 
-	// the first err is relay error reason.
-	err = <-ch
-	// wait goroutine done
-	<-ch
-	return err
+	// ignore timeout error.
+	err1 := <-done
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		return err
+	}
+	if !errors.Is(err1, os.ErrDeadlineExceeded) {
+		return err1
+	}
+	return nil
 }

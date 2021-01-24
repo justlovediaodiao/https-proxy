@@ -4,90 +4,67 @@ import (
 	"errors"
 	"io"
 	"net"
-	"strconv"
+
+	uot "github.com/justlovediaodiao/udp-over-tcp"
 )
 
-// maxAddrLen is the max size of socks address host in bytes.
-const maxAddrLen = 1 + 1 + 255
-
-// cmdConnect is the value of cmd field on handshake.
-const cmdConnect = 1
+// socks request commands as defined in RFC 1928 section 4.
+const (
+	cmdConnect      = 1
+	cmdBind         = 2
+	cmdUDPAssociate = 3
+)
 
 // socksVer is socks version.
 const socksVer = 5
 
-// socks address type. see RFC 1928.
-const (
-	atypIPv4       = 1
-	atypDomainName = 3
-	AtypIPv6       = 4
-)
-
-// readAddr read socks addr defined in RFC 1928.
-func (c *socksConn) readAddr(buf []byte) (string, error) {
-	_, err := io.ReadFull(c.Conn, buf[:1]) // read 1st byte for address type
-	if err != nil {
-		return "", err
-	}
-	var host string
-	switch buf[0] {
-	case atypDomainName:
-		_, err = io.ReadFull(c.Conn, buf[1:2]) // read 2nd byte for domain length
-		if err != nil {
-			return "", err
-		}
-		_, err = io.ReadFull(c.Conn, buf[2:2+int(buf[1])])
-		host = string(buf[2 : 2+int(buf[1])])
-	case atypIPv4:
-		_, err = io.ReadFull(c.Conn, buf[1:1+4])
-		host = net.IP(buf[1 : 1+4]).String()
-	case AtypIPv6:
-		_, err = io.ReadFull(c.Conn, buf[1:1+16])
-		host = net.IP(buf[1 : 1+16]).String()
-	default:
-		err = errors.New("error socks address")
-	}
-	if err != nil {
-		return "", err
-	}
-	// read 2-byte port
-	_, err = io.ReadFull(c.Conn, buf[:2])
-	var port = strconv.Itoa((int(buf[0]) << 8) | int(buf[1]))
-	return net.JoinHostPort(host, port), nil
-}
+// ErrUDPAssociate means the tcp connection used for udp associate.
+var ErrUDPAssociate = errors.New("udp associate")
 
 // handshake do proxy side socks5 handshake. Return target address that app want to connect to.
-func (c *socksConn) handshake() (string, error) {
-	buf := make([]byte, maxAddrLen)
+func (c *socksConn) handshake() (net.Addr, error) {
+	buf := make([]byte, 255)
 	// read VER, NMETHODS, METHODS
 	if _, err := io.ReadFull(c.Conn, buf[:2]); err != nil {
-		return "", err
+		return nil, err
 	}
 	ver := buf[0]
 	if ver != socksVer {
-		return "", errors.New("not a socks5 protocol")
+		return nil, errors.New("not a socks5 protocol")
 	}
 	nmethods := buf[1]
 	if _, err := io.ReadFull(c.Conn, buf[:nmethods]); err != nil {
-		return "", err
+		return nil, err
 	}
 	// write VER METHOD
 	if _, err := c.Conn.Write([]byte{socksVer, 0}); err != nil {
-		return "", err
+		return nil, err
 	}
-	// read VER CMD RSV ATYP DST.ADDR DST.PORT
+	// read VER CMD RSV
 	if _, err := io.ReadFull(c.Conn, buf[:3]); err != nil {
-		return "", err
+		return nil, err
 	}
 	cmd := buf[1]
-	if cmd != cmdConnect {
-		return "", errors.New("unsupported socks command")
-	}
-	addr, err := c.readAddr(buf)
+	// read ATYP DST.ADDR DST.PORT
+	addr, err := uot.ReadSocksAddr(c.Conn)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	_, err = c.Conn.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0}) // SOCKS v5, reply succeeded
+	if cmd == cmdUDPAssociate {
+		a := uot.ParseSocksAddr(c.Conn.LocalAddr().String())
+		if a == nil {
+			return nil, errors.New("error socks address")
+		}
+		err = ErrUDPAssociate
+		_, err = c.Conn.Write(append([]byte{5, 0, 0}, a...)) // SOCKS v5, reply succeeded
+	} else if cmd == cmdConnect {
+		_, err = c.Conn.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0}) // SOCKS v5, reply succeeded
+	} else {
+		return nil, errors.New("unsupported socks command")
+	}
 
-	return addr, err // skip VER, CMD, RSV fields
+	return targetAddr{
+		network: "tcp",
+		address: addr.String(),
+	}, err // skip VER, CMD, RSV fields
 }

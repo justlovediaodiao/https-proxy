@@ -9,9 +9,9 @@ import (
 
 func main() {
 	var c = client.Config{}
+	var http bool
 	flag.StringVar(&c.Listen, "l", ":1080", "listen address")
-	flag.BoolVar(&c.Socks, "socks", false, "listen for socks5 proxy, which is default")
-	flag.BoolVar(&c.HTTP, "http", false, "listen for http proxy")
+	flag.BoolVar(&http, "http", false, "listen for http proxy")
 	flag.StringVar(&c.Server, "server", "", "server address")
 	flag.StringVar(&c.Cert, "cert", "", "tls certificate cert file, optional")
 	flag.StringVar(&c.Password, "password", "", "password")
@@ -20,10 +20,10 @@ func main() {
 		flag.Usage()
 		return
 	}
-	if c.Socks && c.HTTP {
-		c.HTTP = false
-	} else if !c.Socks && !c.HTTP {
-		c.Socks = true
+	if http {
+		c.Protocol = "http"
+	} else {
+		c.Protocol = "socks"
 	}
 	var err = client.Start(&c)
 	if err != nil {

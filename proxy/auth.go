@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"time"
@@ -32,38 +33,40 @@ func sign(msg []byte, key []byte) []byte {
 }
 
 // getAuthQuery return http request query string used for authorization.
-func getAuthQuery(targetAddr string, key []byte) string {
+func getAuthQuery(targetAddr net.Addr, key []byte) string {
 	var ts = fmt.Sprintf("%d", time.Now().Unix())
-	var msg = fmt.Sprintf("%s%s", targetAddr, ts)
+	var msg = fmt.Sprintf("%s%s%s", targetAddr.Network(), targetAddr.String(), ts)
 	var sig = fmt.Sprintf("%x", sign([]byte(msg), key))
 	var q = url.Values{
-		"time":   []string{ts},
-		"target": []string{targetAddr},
-		"sig":    []string{sig},
+		"time":    []string{ts},
+		"network": []string{targetAddr.Network()},
+		"target":  []string{targetAddr.String()},
+		"sig":     []string{sig},
 	}
 	return q.Encode()
 }
 
 // verifyAuthQuery verify http request query string and return target address.
-func verifyAuthQuery(q url.Values, key []byte) (string, bool) {
-	var targetAddr = q.Get("target")
+func verifyAuthQuery(q url.Values, key []byte) (net.Addr, bool) {
+	var network = q.Get("network")
+	var target = q.Get("target")
 	var ts = q.Get("time")
 	var sig = q.Get("sig")
-	if targetAddr == "" || ts == "" || sig == "" {
-		return "", false
+	if network == "" || target == "" || ts == "" || sig == "" {
+		return nil, false
 	}
 	t, err := strconv.Atoi(ts)
 	if err != nil {
-		return "", false
+		return nil, false
 	}
 	var diff = time.Now().Unix() - int64(t)
 	if diff < -120 || diff > 120 {
-		return "", false
+		return nil, false
 	}
-	var msg = fmt.Sprintf("%s%s", targetAddr, ts)
+	var msg = fmt.Sprintf("%s%s%s", network, target, ts)
 	var sig2 = sign([]byte(msg), key)
 	if fmt.Sprintf("%x", sig2) != sig {
-		return "", false
+		return nil, false
 	}
-	return targetAddr, true
+	return targetAddr{network, target}, true
 }
