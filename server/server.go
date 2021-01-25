@@ -49,10 +49,12 @@ func handleConn(conn net.Conn, password string, udpHandler uot.Server) {
 	}
 	if addr.Network() == "tcp" {
 		handleTCP(cc, addr)
-	} else {
+	} else if addr.Network() == "udp" {
 		cc = proxy.UDPOverTCP(cc)
 		// should not handshake again
 		udpHandler.Serve(noHandshake{cc, addr})
+	} else {
+		log.Printf("unkown network: %s", addr.Network())
 	}
 }
 
