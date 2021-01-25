@@ -22,6 +22,7 @@ const socksVer = 5
 var ErrUDPAssociate = errors.New("udp associate")
 
 // handshake do proxy side socks5 handshake. Return target address that app want to connect to.
+// if it is a udp associate cmd, return target address and ErrUDPAssociate.
 func (c *socksConn) handshake() (net.Addr, error) {
 	buf := make([]byte, 255)
 	// read VER, NMETHODS, METHODS
@@ -50,21 +51,25 @@ func (c *socksConn) handshake() (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cmd == cmdUDPAssociate {
+	switch cmd {
+	case cmdUDPAssociate:
 		a := uot.ParseSocksAddr(c.Conn.LocalAddr().String())
 		if a == nil {
 			return nil, errors.New("error socks address")
 		}
 		err = ErrUDPAssociate
 		_, err = c.Conn.Write(append([]byte{5, 0, 0}, a...)) // SOCKS v5, reply succeeded
-	} else if cmd == cmdConnect {
+		if err != nil {
+			return nil, err
+		}
+		return targetAddr{"tcp", addr.String()}, ErrUDPAssociate
+	case cmdConnect:
 		_, err = c.Conn.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0}) // SOCKS v5, reply succeeded
-	} else {
+		if err != nil {
+			return nil, err
+		}
+		return targetAddr{"tcp", addr.String()}, nil
+	default:
 		return nil, errors.New("unsupported socks command")
 	}
-
-	return targetAddr{
-		network: "tcp",
-		address: addr.String(),
-	}, err // skip VER, CMD, RSV fields
 }

@@ -73,6 +73,7 @@ func handleConn(conn net.Conn, server string, password string, protocol string) 
 	if err != nil {
 		// udp associate, keep connection and finally close.
 		if err == proxy.ErrUDPAssociate {
+			log.Printf("%s udp associate", addr.String())
 			conn.Read(make([]byte, 1))
 			return
 		}

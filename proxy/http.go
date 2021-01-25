@@ -94,18 +94,12 @@ func (c *httpConn) handshake() (net.Addr, error) {
 		if err = httpResponse(c.Conn, http200); err != nil {
 			return nil, err
 		}
-		return targetAddr{
-			network: "tcp",
-			address: joinHostPort(req.URL.Host, "80"),
-		}, nil
+		return targetAddr{"tcp", joinHostPort(req.URL.Host, "80")}, nil
 	}
 	// proxy mode, for http
 	c.bufConn = bufConn
 	c.request = newRequestReader(req)
-	return targetAddr{
-		network: "tcp",
-		address: joinHostPort(req.URL.Host, "80"),
-	}, nil
+	return targetAddr{"tcp", joinHostPort(req.URL.Host, "80")}, nil
 }
 
 // Read reads data from the connection.
