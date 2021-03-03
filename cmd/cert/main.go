@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 )
@@ -48,7 +47,7 @@ func makeOpensslConfig() bool {
 		return false
 	}
 	var content = fmt.Sprintf(conf, cn, san)
-	var err = ioutil.WriteFile(openssl, []byte(content), 0644)
+	var err = os.WriteFile(openssl, []byte(content), 0644)
 	if err != nil {
 		fmt.Printf("make openssl config file error: %v\n", err)
 		return false

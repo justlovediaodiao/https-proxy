@@ -4,9 +4,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"io/ioutil"
 	"log"
 	"net"
+	"os"
 
 	"github.com/justlovediaodiao/https-proxy/proxy"
 	uot "github.com/justlovediaodiao/udp-over-tcp"
@@ -48,7 +48,7 @@ func Start(config *Config) error {
 
 func configRootCA(cert string) error {
 	var pool = x509.NewCertPool()
-	b, err := ioutil.ReadFile(cert)
+	b, err := os.ReadFile(cert)
 	if err != nil {
 		return err
 	}
