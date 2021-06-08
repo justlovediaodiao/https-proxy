@@ -66,7 +66,7 @@ It will start a socks5 proxy listening tcp/udp on `127.0.0.1:1080` and proxy to 
 
 Client send a http request to server:
 ```
-GET /?target=github.com:443&time=1590411634&sig=c2208abde9668e8e9815c3690855edd1e63abeac
+GET /?network=tcp&target=github.com:443&time=1590411634&sig=c2208abde9668e8e9815c3690855edd1e63abeac
 ```
 
 - method: Must be `GET`.
