@@ -6,13 +6,17 @@ import (
 	"errors"
 	"log"
 	"net"
-	"os"
 
 	"github.com/justlovediaodiao/https-proxy/proxy"
 	uot "github.com/justlovediaodiao/udp-over-tcp"
 )
 
 var tlsConfig = &tls.Config{MinVersion: tls.VersionTLS13}
+
+var (
+	udpConn net.PacketConn
+	tcpConn net.Listener
+)
 
 // Start start client service.
 func Start(config *Config) error {
@@ -27,6 +31,7 @@ func Start(config *Config) error {
 		if err != nil {
 			return err
 		}
+		udpConn = conn
 		go startUDP(conn, config.Server, config.Password)
 	}
 
@@ -34,6 +39,7 @@ func Start(config *Config) error {
 	if err != nil {
 		return err
 	}
+	tcpConn = l
 	log.Printf("listening on %s for %s", l.Addr().String(), config.Protocol)
 
 	for {
@@ -50,13 +56,21 @@ func Start(config *Config) error {
 	}
 }
 
+func Close() error {
+	if udpConn != nil {
+		udpConn.Close()
+		udpConn = nil
+	}
+	if tcpConn != nil {
+		tcpConn.Close()
+		tcpConn = nil
+	}
+	return nil
+}
+
 func configRootCA(cert string) error {
 	var pool = x509.NewCertPool()
-	b, err := os.ReadFile(cert)
-	if err != nil {
-		return err
-	}
-	ok := pool.AppendCertsFromPEM(b)
+	ok := pool.AppendCertsFromPEM([]byte(cert))
 	if !ok {
 		return errors.New("invalid certificate")
 	}
