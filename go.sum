@@ -1,2 +1,4 @@
 github.com/justlovediaodiao/udp-over-tcp v0.0.0-20210125124315-e360f70b781d h1:frd6QqyfJSosOu+dx+PP5NZUApi1qI+40vFAHIlJq/4=
 github.com/justlovediaodiao/udp-over-tcp v0.0.0-20210125124315-e360f70b781d/go.mod h1:QzWYpgFVaGA1bnErJqm72/RzFdB1W8w719FqcJ026pM=
+github.com/justlovediaodiao/udp-over-tcp v0.0.0-20230325130704-afedb2ee6e61 h1:d4+pRyWgAWhThFIw0TxgRGxsVNnec9Q02EyviZ+KFTk=
+github.com/justlovediaodiao/udp-over-tcp v0.0.0-20230325130704-afedb2ee6e61/go.mod h1:QzWYpgFVaGA1bnErJqm72/RzFdB1W8w719FqcJ026pM=
