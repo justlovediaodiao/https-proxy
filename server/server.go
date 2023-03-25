@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/tls"
+	"errors"
 	"log"
 	"net"
 
@@ -26,6 +27,10 @@ func Start(config *Config) error {
 		conn, err := l.Accept()
 		if err != nil {
 			log.Printf("failed to accept: %v", err)
+			if errors.Is(err, net.ErrClosed) {
+				log.Printf("tcp listener closed, exit")
+				return nil
+			}
 			continue
 		}
 		go handleConn(conn, config.Password, udpHandler)
