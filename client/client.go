@@ -42,18 +42,8 @@ func Start(config *Config) error {
 	tcpConn = l
 	log.Printf("listening on %s for %s", l.Addr().String(), config.Protocol)
 
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			log.Printf("failed to accept: %v", err)
-			if errors.Is(err, net.ErrClosed) {
-				log.Printf("tcp listener closed, exit")
-				return nil
-			}
-			continue
-		}
-		go handleConn(conn, config.Server, config.Password, config.Protocol)
-	}
+	go startTCP(l, config.Server, config.Password, config.Protocol)
+	return nil
 }
 
 func Close() error {
@@ -123,6 +113,21 @@ func handleConn(conn net.Conn, server string, password string, protocol string) 
 	err = proxy.Relay(cc, sc)
 	if err != nil {
 		log.Printf("relay error: %v", err)
+	}
+}
+
+func startTCP(l net.Listener, server string, password string, protocol string) {
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			log.Printf("failed to accept: %v", err)
+			if errors.Is(err, net.ErrClosed) {
+				log.Printf("tcp listener closed, exit")
+				return
+			}
+			continue
+		}
+		go handleConn(conn, server, password, protocol)
 	}
 }
 
