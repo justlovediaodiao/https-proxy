@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"os/signal"
 
 	"github.com/justlovediaodiao/https-proxy/client"
 )
@@ -25,8 +27,22 @@ func main() {
 	} else {
 		c.Protocol = "socks"
 	}
+	if c.Cert != "" {
+		b, err := os.ReadFile(c.Cert)
+		if err != nil {
+			fmt.Printf("cannot read cert file: %v", err)
+			return
+		}
+		c.Cert = string(b)
+	}
 	var err = client.Start(&c)
 	if err != nil {
 		fmt.Printf("failed to start client: %v", err)
+		return
 	}
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, os.Kill)
+	<-ch
+	client.Close()
 }

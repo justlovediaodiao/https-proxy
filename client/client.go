@@ -120,10 +120,11 @@ func startTCP(l net.Listener, server string, password string, protocol string) {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Printf("failed to accept: %v", err)
 			if errors.Is(err, net.ErrClosed) {
 				log.Printf("tcp listener closed, exit")
 				return
+			} else {
+				log.Printf("failed to accept: %v", err)
 			}
 			continue
 		}
