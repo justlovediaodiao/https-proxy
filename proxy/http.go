@@ -89,96 +89,48 @@ func (c *httpConn) handshake() (net.Addr, error) {
 		return nil, err
 	}
 	if req.Method == "CONNECT" { // tunnel mode, for https
-		c.isTunnel = true
 		req.Body.Close()
 		if err = httpResponse(c.Conn, http200); err != nil {
 			return nil, err
 		}
-		return targetAddr{"tcp", joinHostPort(req.URL.Host, "80")}, nil
+	} else { // proxy mode, for http
+		c.r = http2Tunnel(req, bufConn)
 	}
-	// proxy mode, for http
-	c.bufConn = bufConn
-	c.request = newRequestReader(req)
+
 	return targetAddr{"tcp", joinHostPort(req.URL.Host, "80")}, nil
 }
 
-// Read reads data from the connection.
+func http2Tunnel(req *http.Request, bufConn *bufio.Reader) io.ReadCloser {
+	r, w := io.Pipe()
+	go func() {
+		for {
+			err := req.Write(w)
+			if err != nil {
+				w.CloseWithError(err)
+				break
+			}
+			req, err = http.ReadRequest(bufConn)
+			if err != nil {
+				w.CloseWithError(err)
+				break
+			}
+		}
+	}()
+	return r
+}
+
+// Read reads data from connection.
 func (c *httpConn) Read(b []byte) (int, error) {
-	if c.isTunnel { // tunnnel mode just relay after handshake
-		return c.Conn.Read(b)
+	if c.r != nil {
+		return c.r.Read(b)
 	}
-READ:
-	// proxy mode should forward http request to server
-	if c.request == nil {
-		req, err := http.ReadRequest(c.bufConn)
-		if err != nil {
-			return 0, err
-		}
-		c.request = newRequestReader(req)
-	}
-	n, err := c.request.Read(b)
-	if err == io.EOF { // EOF, request ended
-		c.request = nil
-		err = nil
-		goto READ
-	}
-	return n, err
+	return c.Conn.Read(b)
 }
 
-// requestReader trun http.Request to stream used to forward to remote.
-// Read call will automatically close req.Body when read to EOF or error.
-type requestReader struct {
-	req       *http.Request
-	reqReader io.Reader
-	eof       bool
-}
-
-// Read read data as much as possiable until full or EOF or error.
-func (r *requestReader) Read(b []byte) (n int, err error) {
-	if r.eof {
-		err = io.EOF
-		return
+// Close close connection.
+func (c *httpConn) Close() error {
+	if c.r != nil {
+		c.r.Close()
 	}
-	for n < len(b) && err == nil {
-		var nn int
-		nn, err = r.reqReader.Read(b[n:])
-		n += nn
-	}
-	if err != nil {
-		r.req.Body.Close() // must close req.Body
-	}
-	if n > 0 && err == io.EOF { // should not return eof if n > 0
-		r.eof = true
-		err = nil
-	}
-	return
-}
-
-// newRequestReader return requestReader.
-func newRequestReader(req *http.Request) io.Reader {
-	var rs = make([]io.Reader, 0, len(req.Header)+3) // request line + header lines + \r\n + body. assume each header appears once.
-	var reqLine = fmt.Sprintf("%s %s HTTP/1.1\r\n", req.Method, req.URL.RequestURI())
-	rs = append(rs, strings.NewReader(reqLine))
-	for k, vs := range req.Header {
-		// remove hop-by-hop headers, not sure, fuck http specification.
-		switch k {
-		case "Transfer-Encoding": // request body maybe chuncked, but forwarding to remote is not.
-		case "Proxy-Authenticate":
-		case "Proxy-Authorization":
-		case "Connection":
-		case "Trailer":
-		case "TE":
-		case "Upgrade": // maybe websocket, donot support.
-			continue
-		case "Proxy-Connection":
-			k = "Connection"
-		}
-		for _, v := range vs {
-			var header = fmt.Sprintf("%s: %s\r\n", k, v)
-			rs = append(rs, strings.NewReader(header))
-		}
-	}
-	// set Host header and \r\n
-	rs = append(rs, strings.NewReader(fmt.Sprintf("Host: %s\r\n\r\n", req.Host)), req.Body)
-	return &requestReader{req, io.MultiReader(rs...), false}
+	return c.Conn.Close()
 }

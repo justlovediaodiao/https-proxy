@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -36,9 +35,7 @@ type socksConn struct {
 // httpConn is client side incoming http connection.
 type httpConn struct {
 	net.Conn
-	isTunnel bool          // works on tunnel or proxy mode?
-	bufConn  *bufio.Reader // used to read net.Conn for http
-	request  io.Reader     // http request used to forward to remote
+	r io.ReadCloser // pipe http request to reader
 }
 
 type targetAddr struct {
