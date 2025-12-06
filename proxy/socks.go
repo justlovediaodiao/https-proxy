@@ -10,8 +10,8 @@ import (
 
 // socks request commands as defined in RFC 1928 section 4.
 const (
-	cmdConnect      = 1
-	cmdBind         = 2
+	cmdConnect = 1
+	// cmdBind         = 2
 	cmdUDPAssociate = 3
 )
 
@@ -57,7 +57,6 @@ func (c *socksConn) handshake() (net.Addr, error) {
 		if a == nil {
 			return nil, errors.New("error socks address")
 		}
-		err = ErrUDPAssociate
 		_, err = c.Conn.Write(append([]byte{5, 0, 0}, a...)) // SOCKS v5, reply succeeded
 		if err != nil {
 			return nil, err

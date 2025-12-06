@@ -82,7 +82,7 @@ func handleConn(conn net.Conn, server string, password string, protocol string) 
 		// udp associate, keep connection and finally close.
 		if err == proxy.ErrUDPAssociate {
 			log.Printf("%s udp associate", addr.String())
-			conn.Read(make([]byte, 1))
+			conn.Read(make([]byte, 1)) // block until client close connection.
 			return
 		}
 		log.Printf("proxy handshake error: %v", err)
