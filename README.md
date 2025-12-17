@@ -1,14 +1,22 @@
 # https-proxy
 
-[![Build](https://github.com/justlovediaodiao/https-proxy/workflows/Build/badge.svg)](https://github.com/justlovediaodiao/https-proxy/actions?query=workflow%3ABuild)
-[![Go version](https://img.shields.io/github/go-mod/go-version/justlovediaodiao/https-proxy)](https://golang.org/)
+HTTPS proxy is a tcp/udp proxy. It transfers proxy data over TLS.
 
-HTTPS proxy is a tcp/udp proxy. It transfers proxy data over HTTPS.
+### Build
 
-### Why HTTPS
+Go 1.20 or higher is required.
 
-- HTTPS is widely used and its security is verified enough.  
-- Make the proxy looks like a HTTPS communication to avoid detection and being blocked.
+- server
+
+```
+go build -o hpserver ./cmd/client
+```
+
+- client
+
+```
+go build -o hpclient ./cmd/server
+```
 
 ### Certificate
 
@@ -17,6 +25,7 @@ HTTPS proxy is a tcp/udp proxy. It transfers proxy data over HTTPS.
 - Or use a self-signed certificate and let client trust it. The repositorie provides a `cert` command to generate certificates.
 
 1. install `openssl` if not.
+2. run `go build -o cert./cmd/cert` to build `cert` command.
 3. run `cert -ip <server ip>` or `cert -host <server domain>` to generate a certificate. You will get `hp.key` and `hp.crt` files. Do not leak out `hp.key`.
 
 ### Usage
@@ -44,10 +53,10 @@ It will start a socks5 proxy listening tcp/udp on `127.0.0.1:1080` and proxy to 
 `hp.crt` is trusted root CA.
 
 - l: local listening address, default is `:1080`.
-- http: listening for http proxy, not socks, which donot support udp.
 - server: server address.
 - cert: root certificate file path, used to verify server's certificate. optional, needed when using a self-signed certificate. 
 - password: password used for authorization.
+- http: listening for http proxy, not socks, which does not support udp.
 
 ### Protocol
 
@@ -55,7 +64,7 @@ It will start a socks5 proxy listening tcp/udp on `127.0.0.1:1080` and proxy to 
 [tls handhake] [encrypted payload]
 ```
 
-- tls handshake: On Handshake, client and server will negotiate encryption method and encryption key used for encrypting payload. see [tls handshake](https://en.wikipedia.org/wiki/Transport_Layer_Security#TLS_handshake).
+- tls handshake: On handshake, client and server will negotiate encryption method and encryption key used for encrypting payload. see [tls handshake](https://en.wikipedia.org/wiki/Transport_Layer_Security#TLS_handshake).
 - encrypted payload:
 
 ```
@@ -86,8 +95,6 @@ If authorization success, sever must response http status code 200. Other respon
 ```
 HTTP/1.1 200 OK
 ```
-
-Don't return too many http error codes. The client doesn't care about this. Instead, it gives the chance to detect whether it is a proxy service.
 
 - proxy data: Real transfer data.
 
