@@ -8,14 +8,14 @@ Go 1.20 or higher is required.
 
 - server
 
-```
-go build -o hpserver ./cmd/client
+``` 
+go build -o hpserver ./cmd/server
 ```
 
 - client
 
-```
-go build -o hpclient ./cmd/server
+``` 
+go build -o hpclient ./cmd/client
 ```
 
 ### Certificate

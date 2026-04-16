@@ -37,6 +37,10 @@ func Start(config *Config) error {
 
 	l, err := net.Listen("tcp", config.Listen)
 	if err != nil {
+		if udpConn != nil {
+			udpConn.Close()
+			udpConn = nil
+		}
 		return err
 	}
 	tcpConn = l

@@ -123,12 +123,11 @@ func Relay(left, right net.Conn) error {
 	_, err := io.Copy(left, right)
 	left.SetReadDeadline(time.Now()) // unblock read on left
 
-	// ignore timeout error.
 	err1 := <-done
-	if !errors.Is(err, os.ErrDeadlineExceeded) {
+	if err != nil && !errors.Is(err, os.ErrDeadlineExceeded) {
 		return err
 	}
-	if !errors.Is(err1, os.ErrDeadlineExceeded) {
+	if err1 != nil && !errors.Is(err1, os.ErrDeadlineExceeded) {
 		return err1
 	}
 	return nil
