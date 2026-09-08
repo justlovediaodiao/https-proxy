@@ -1,104 +1,105 @@
 # https-proxy
 
-HTTPS proxy is a tcp/udp proxy. It transfers proxy data over TLS.
+HTTPS Proxy is a TCP/UDP proxy that transfers proxy traffic over TLS 1.3.
 
-### Build
+## Build
 
 Go 1.20 or higher is required.
 
-- server
+- Server:
 
-``` 
+```sh
 go build -o hpserver ./cmd/server
 ```
 
-- client
+- Client:
 
-``` 
+```sh
 go build -o hpclient ./cmd/client
 ```
 
-### Certificate
+## Certificate
 
-- If you have a domain and a trusted certificate signed by CA, you can use it directly.
+- If you have a domain and a certificate signed by a trusted CA, you can use that certificate directly.
 
-- Or use a self-signed certificate and let client trust it. The repositorie provides a `cert` command to generate certificates.
+- Alternatively, you can use a self-signed certificate and configure the client to trust it. This repository provides a `cert` command to generate one:
 
-1. install `openssl` if not.
-2. run `go build -o cert./cmd/cert` to build `cert` command.
-3. run `cert -ip <server ip>` or `cert -host <server domain>` to generate a certificate. You will get `hp.key` and `hp.crt` files. Do not leak out `hp.key`.
+1. Install `openssl` if it is not already available.
+2. Run `go build -o cert ./cmd/cert` to build the `cert` command.
+3. Run `./cert -ip <server-ip>` or `./cert -host <server-domain>` to generate a certificate for the address used by the client.
 
-### Usage
+The command creates `hp.key` and `hp.crt` in the current directory. Keep `hp.key` private.
 
-**server:**
+## Usage
 
-```
+### Server
+
+```sh
 hpserver -l :443 -cert hp.crt -key hp.key -password F09a5SZbhJfzp5GI
 ```
 
-It will start a https server on :443 and use `hp.crt` as certificate with key `hp.key`.
+This starts the proxy server on `:443`, using `hp.crt` and its private key `hp.key`.
 
-- l: server listening address, default is `:443`.
-- cert: tls certificate file path.
-- key: tls certificate key file path.
-- password: password used to verify client.
+- `-l`: Server listen address. Defaults to `:443`.
+- `-cert`: TLS certificate file path. Required.
+- `-key`: TLS certificate private key file path. Required.
+- `-password`: Pre-shared password used to authenticate clients. Required.
 
-**client:**
+### Client
 
-```
+```sh
 hpclient -l 127.0.0.1:1080 -server 59.24.3.174:443 -cert hp.crt -password F09a5SZbhJfzp5GI
 ```
 
-It will start a socks5 proxy listening tcp/udp on `127.0.0.1:1080` and proxy to `59.24.3.174:443`.  
-`hp.crt` is trusted root CA.
+This starts a SOCKS5 proxy listening for TCP and UDP traffic on `127.0.0.1:1080`, and forwards it through the proxy server at `59.24.3.174:443`. In this example, `hp.crt` is trusted as the root certificate when verifying the server.
 
-- l: local listening address, default is `:1080`.
-- server: server address.
-- cert: root certificate file path, used to verify server's certificate. optional, needed when using a self-signed certificate. 
-- password: password used for authorization.
-- http: listening for http proxy, not socks, which does not support udp.
+- `-l`: Local listen address. Defaults to `:1080`.
+- `-server`: Proxy server address. Required.
+- `-cert`: Root certificate file used to verify the server certificate. Optional for certificates signed by a system-trusted CA; required when using the generated self-signed certificate.
+- `-password`: Pre-shared password used for authentication. Required and must match the server password.
+- `-http`: Run an HTTP/HTTPS proxy instead of SOCKS5. HTTP proxy mode supports TCP only, not UDP.
 
-### Protocol
-
-```
-[tls handhake] [encrypted payload]
-```
-
-- tls handshake: On handshake, client and server will negotiate encryption method and encryption key used for encrypting payload. see [tls handshake](https://en.wikipedia.org/wiki/Transport_Layer_Security#TLS_handshake).
-- encrypted payload:
+## Protocol
 
 ```
-[http handshake] [tcp data]
+[TLS handshake] [encrypted payload]
 ```
 
-- http handshake: 
+- TLS handshake: The client and server negotiate the encryption method and keys used to protect the payload. See [TLS handshake](https://en.wikipedia.org/wiki/Transport_Layer_Security#TLS_handshake). Both sides require TLS 1.3 or later.
+- Encrypted payload:
 
-Client send a http request to server:
 ```
+[HTTP handshake] [TCP data]
+```
+
+- HTTP handshake:
+
+The client sends an HTTP request to the server:
+
+```http
 GET /?network=tcp&target=github.com:443&time=1590411634&sig=c2208abde9668e8e9815c3690855edd1e63abeac
 ```
 
-- method: Must be `GET`.
-- path: Must be `/`.
-- network: udp or tcp.
-- target: Target address with port. ipv4 or ipv6 or domain.
-- time: Current unix timestamp that is accurate to a second. No more than 2 minutes compared to server time.
-- sig: Signature. `HMAC(msg, key, sha1)`:
+- Method: Must be `GET`.
+- Path: Must be `/`.
+- `network`: `tcp` or `udp`.
+- `target`: Target IPv4, IPv6, or domain address, including the port.
+- `time`: Current Unix timestamp in seconds. It must be within 2 minutes of the server time.
+- `sig`: Hex-encoded `HMAC-SHA1(msg, key)` signature:
+
 ```
 msg: network + target + time string, for example: tcpgithub.com:4431590411634
-key: 32-bytes, derivation from password. following EVP_BytesToKey(3) in OpenSSL.
-sha1: the SHA1 hash algorithm
+key: a 32-byte key derived from the password using the OpenSSL EVP_BytesToKey-compatible MD5 derivation
 ```
 
-If authorization success, sever must response http status code 200. Other response codes are considered failures.
+If authentication succeeds, the server responds with HTTP status `200`. Any other status code is considered a failure.
 
-```
+```http
 HTTP/1.1 200 OK
 ```
 
-- proxy data: Real transfer data.
+- Proxy data: The actual proxied traffic.
 
+### UDP
 
-#### UDP
-
-UDP packets are transfered over tcp. see [udp-over-tcp](https://github.com/justlovediaodiao/udp-over-tcp).
+UDP packets are transferred over TCP. See [udp-over-tcp](https://github.com/justlovediaodiao/udp-over-tcp).
